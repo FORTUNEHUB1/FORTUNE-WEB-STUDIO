@@ -12,19 +12,22 @@ import {
   Star
 } from 'lucide-react';
 import { CustomService } from '../../pages/AdminDashboard';
+import { db } from '../../lib/firebase';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 
 export default function Services() {
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
 
   useEffect(() => {
-    const storedFilters = localStorage.getItem('custom_services');
-    if (storedFilters) {
-      try {
-        setCustomServices(JSON.parse(storedFilters));
-      } catch (error) {
-        console.error('Error parsing services');
-      }
-    }
+    const q = query(collection(db, 'services'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const svcs: CustomService[] = [];
+      snapshot.forEach(doc => svcs.push({ id: doc.id, ...doc.data() } as CustomService));
+      setCustomServices(svcs);
+    }, (error) => {
+      console.error(error);
+    });
+    return () => unsub();
   }, []);
 
   const services = [
@@ -95,20 +98,25 @@ export default function Services() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-50px" }}
                   transition={{ duration: 0.5, delay: idx * 0.1 }}
-                  className="group rounded-2xl overflow-hidden glass-panel border border-white/5 hover:border-cyan-500/30 transition-all duration-300"
+                  className="group rounded-2xl overflow-hidden glass-panel border border-white/5 hover:border-cyan-500/30 transition-all duration-300 flex flex-col"
                 >
-                  <div className="w-full h-48 bg-black overflow-hidden relative">
+                  <div className="w-full h-48 bg-black overflow-hidden relative flex-shrink-0">
                     <img src={cs.mediaUrl} alt={cs.title} className="w-full h-full object-cover opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500" />
                     <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-xs font-bold text-cyan-400 border border-white/10">
                       KSH {cs.price}
                     </div>
                   </div>
-                  <div className="p-6">
+                  <div className="p-6 flex flex-col flex-1">
                     <h4 className="text-xl font-bold text-white mb-2">{cs.title}</h4>
-                    <p className="text-secondary text-sm leading-relaxed">{cs.description}</p>
-                    <button className="mt-6 w-full py-3 bg-white/5 hover:bg-cyan-500 hover:text-black text-white font-bold rounded-xl transition-colors text-sm uppercase tracking-wider">
+                    <p className="text-secondary text-sm leading-relaxed mb-6 flex-1">{cs.description}</p>
+                    <a 
+                      href={cs.serviceUrl || 'https://t.me/+1vH_j9h-myowZjQ0'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-auto block text-center w-full py-3 bg-white/5 hover:bg-cyan-500 hover:text-black text-white font-bold rounded-xl transition-colors text-sm uppercase tracking-wider"
+                    >
                       Request Service
-                    </button>
+                    </a>
                   </div>
                 </motion.div>
               ))}

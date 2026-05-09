@@ -1,7 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Trash2, Edit2, Image as ImageIcon, Search } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, Image as ImageIcon, Search, LogIn, LogOut, ExternalLink } from 'lucide-react';
+import { db, auth } from '../lib/firebase';
+import { collection, query, onSnapshot, setDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export interface CustomService {
   id: string;
@@ -9,33 +42,59 @@ export interface CustomService {
   description: string;
   price: string;
   mediaUrl: string;
+  serviceUrl?: string;
+  ownerId?: string;
+  createdAt?: number;
 }
 
 export default function AdminDashboard() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [services, setServices] = useState<CustomService[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Form State
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [serviceUrl, setServiceUrl] = useState('');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
 
   useEffect(() => {
-    const storedFilters = localStorage.getItem('custom_services');
-    if (storedFilters) {
-      try {
-        setServices(JSON.parse(storedFilters));
-      } catch (error) {
-        console.error('Error parsing services');
-      }
-    }
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setIsLoading(false);
+    });
+    return () => unsubAuth();
   }, []);
 
-  const saveServices = (newServices: CustomService[]) => {
-    setServices(newServices);
-    localStorage.setItem('custom_services', JSON.stringify(newServices));
+  useEffect(() => {
+    // Only subscribe to services if user is logged in, or can just be public. 
+    // In our case we allow public read. Let's show all services.
+    const q = query(collection(db, 'services'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const svcs: CustomService[] = [];
+      snapshot.forEach(doc => svcs.push({ id: doc.id, ...doc.data() } as CustomService));
+      setServices(svcs);
+    }, (error) => {
+      // Ignore if offline before initialized, but handle otherwise
+      console.error(error);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +102,6 @@ export default function AdminDashboard() {
       const file = e.target.files[0];
       setMediaFile(file);
       
-      // Convert to Base64 for local storage preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setMediaUrl(reader.result as string);
@@ -52,32 +110,70 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !price) return;
+    if (!title || !description || !price || !currentUser) return;
     
-    const newService: CustomService = {
-      id: Date.now().toString(),
+    // Default to telegram url if empty
+    const finalServiceUrl = serviceUrl.trim() !== '' ? serviceUrl : 'https://t.me/+1vH_j9h-myowZjQ0';
+    
+    const id = Date.now().toString();
+    const newDoc = doc(db, 'services', id);
+    
+    const data = {
       title,
       description,
       price,
       mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      serviceUrl: finalServiceUrl,
+      ownerId: currentUser.uid,
+      createdAt: Date.now()
     };
     
-    saveServices([newService, ...services]);
-    
-    // Reset Form
-    setTitle('');
-    setDescription('');
-    setPrice('');
-    setMediaUrl('');
-    setMediaFile(null);
-    setIsAdding(false);
+    try {
+      await setDoc(newDoc, data);
+      
+      setTitle('');
+      setDescription('');
+      setPrice('');
+      setMediaUrl('');
+      setServiceUrl('');
+      setMediaFile(null);
+      setIsAdding(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'services');
+    }
   };
 
-  const deleteService = (id: string) => {
-    saveServices(services.filter(s => s.id !== id));
+  const deleteService = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'services', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `services/${id}`);
+    }
   };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center pt-32"><div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="pt-32 pb-20 px-6 min-h-screen flex flex-col items-center justify-center relative">
+        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 to-blue-900/20 rounded-3xl blur-3xl -z-10" />
+        <div className="glass-panel p-10 rounded-3xl border border-white/10 text-center max-w-md w-full">
+          <h1 className="text-3xl font-serif font-bold mb-4">Admin Access</h1>
+          <p className="text-secondary mb-8">Sign in to manage your custom services.</p>
+          <button 
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center gap-3 bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            <LogIn size={20} /> Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-32 pb-20 px-6 min-h-screen">
@@ -87,12 +183,20 @@ export default function AdminDashboard() {
             <h1 className="text-4xl font-serif font-bold mb-2">Admin Dashboard</h1>
             <p className="text-secondary">Manage your custom services & products.</p>
           </div>
-          <button 
-            onClick={() => setIsAdding(!isAdding)}
-            className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2"
-          >
-            {isAdding ? 'Cancel' : <><Plus size={20} /> Add New Service</>}
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleLogout}
+              className="px-4 py-2 bg-white/5 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 border border-white/10"
+            >
+              <LogOut size={16} /> Logout
+            </button>
+            <button 
+              onClick={() => setIsAdding(!isAdding)}
+              className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 transition-colors flex items-center justify-center gap-2"
+            >
+              {isAdding ? 'Cancel' : <><Plus size={20} /> Add New Service</>}
+            </button>
+          </div>
         </div>
 
         {isAdding && (
@@ -109,6 +213,7 @@ export default function AdminDashboard() {
                   <input 
                     type="text" 
                     required
+                    maxLength={100}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
@@ -120,6 +225,7 @@ export default function AdminDashboard() {
                   <input 
                     type="text" 
                     required
+                    maxLength={50}
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
@@ -129,10 +235,23 @@ export default function AdminDashboard() {
               </div>
               
               <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Service/Product URL (Optional)</label>
+                <input 
+                  type="text" 
+                  value={serviceUrl}
+                  maxLength={2000}
+                  onChange={(e) => setServiceUrl(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+                  placeholder="e.g. https://whop.com/... (Defaults to Telegram)"
+                />
+              </div>
+              
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-secondary">Description</label>
                 <textarea 
                   required
                   rows={3}
+                  maxLength={2000}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
@@ -190,22 +309,34 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 gap-6">
               {services.map(service => (
                 <div key={service.id} className="glass-panel p-6 rounded-2xl border border-white/5 flex flex-col sm:flex-row gap-6 items-center">
-                  <div className="w-full sm:w-48 h-32 rounded-xl overflow-hidden flex-shrink-0 bg-black">
+                  <div className="w-full sm:w-48 h-32 rounded-xl overflow-hidden flex-shrink-0 bg-black relative">
                     <img src={service.mediaUrl} alt={service.title} className="w-full h-full object-cover opacity-80" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex flex-wrap justify-between items-start mb-2 gap-4">
                       <h3 className="text-xl font-bold">{service.title}</h3>
-                      <span className="text-cyan-400 font-medium">KSH {service.price}</span>
+                      <span className="text-cyan-400 font-medium whitespace-nowrap bg-cyan-900/30 px-3 py-1 rounded-full text-sm">KSH {service.price}</span>
                     </div>
                     <p className="text-secondary text-sm mb-4 line-clamp-2">{service.description}</p>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => deleteService(service.id)}
-                        className="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1"
-                      >
-                        <Trash2 size={16} /> Delete
-                      </button>
+                    <div className="flex gap-4 items-center">
+                      {service.ownerId === currentUser.uid && (
+                        <button 
+                          onClick={() => deleteService(service.id)}
+                          className="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1"
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      )}
+                      {service.serviceUrl && (
+                        <a 
+                          href={service.serviceUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 hover:text-cyan-300 text-sm font-medium flex items-center gap-1"
+                        >
+                          <ExternalLink size={16} /> Test Link
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>

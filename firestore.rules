@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    // Validation Helpers
+    function isValidService(data) {
+      return data.keys().hasAll(['title', 'description', 'price', 'mediaUrl', 'createdAt', 'ownerId']) &&
+             // Ensure strict schema
+             data.keys().hasOnly(['title', 'description', 'price', 'mediaUrl', 'serviceUrl', 'createdAt', 'ownerId']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+             data.price is string && data.price.size() > 0 && data.price.size() <= 50 &&
+             data.mediaUrl is string && data.mediaUrl.size() > 0 && data.mediaUrl.size() <= 2000 &&
+             (data.get('serviceUrl', '') is string) && (data.get('serviceUrl', '').size() <= 2000) &&
+             data.createdAt is number &&
+             data.ownerId == request.auth.uid;
+    }
+
+    // Rules for Services
+    match /services/{serviceId} {
+      allow read: if true;
+      allow list: if true; // Because public page needs to list services
+      
+      allow create: if isSignedIn() &&
+                       isValidId(serviceId) &&
+                       isValidService(incoming()) &&
+                       incoming().createdAt == request.time.toMillis();
+                       
+      allow update: if isSignedIn() &&
+                       isValidId(serviceId) &&
+                       isValidService(incoming()) &&
+                       existing().ownerId == request.auth.uid &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'mediaUrl', 'serviceUrl']);
+                       
+      allow delete: if isSignedIn() &&
+                       isValidId(serviceId) &&
+                       existing().ownerId == request.auth.uid;
+    }
+  }
+}

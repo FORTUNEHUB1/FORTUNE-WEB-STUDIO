@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "service": {
+      "title": "Service",
+      "description": "A custom service offered by the studio",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "serviceUrl": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["title", "description", "price", "mediaUrl", "createdAt", "ownerId"]
+    }
+  },
+  "firestore": {
+    "services/{serviceId}": {
+      "schema": { "$ref": "#/entities/service" },
+      "description": "Main collection for storing custom services."
+    }
+  }
+}
