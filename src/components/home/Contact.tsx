@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Mail, MessageCircle, Send, MapPin } from 'lucide-react';
+import { Mail, MessageCircle, Send, MapPin, ExternalLink } from 'lucide-react';
 
 export default function Contact() {
   return (
@@ -29,11 +29,23 @@ export default function Contact() {
                 </div>
                 <span className="text-lg text-secondary group-hover:text-white transition-colors">hello@fortunestudio.com</span>
               </a>
-              <a href="#" className="flex items-center space-x-4 group">
+              <a href="https://wa.me/254797759879" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-4 group">
                 <div className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-white/10 group-hover:bg-green-500 transition-colors">
                   <MessageCircle size={20} className="text-white transition-colors" />
                 </div>
                 <span className="text-lg text-secondary group-hover:text-white transition-colors">WhatsApp Us</span>
+              </a>
+              <a href="https://t.me/+1vH_j9h-myowZjQ0" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-4 group">
+                <div className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-white/10 group-hover:bg-blue-500 transition-colors">
+                  <Send size={20} className="text-white transition-colors" />
+                </div>
+                <span className="text-lg text-secondary group-hover:text-white transition-colors">Telegram Channel</span>
+              </a>
+              <a href="https://whop.com/fortune-digital-hub/fortune-digital-hub-5b/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-4 group">
+                <div className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-white/10 group-hover:bg-purple-500 transition-colors">
+                  <ExternalLink size={20} className="text-white transition-colors" />
+                </div>
+                <span className="text-lg text-secondary group-hover:text-white transition-colors">Fortune Digital Hub</span>
               </a>
               <div className="flex items-center space-x-4 group cursor-default">
                 <div className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-white/10">
@@ -102,7 +114,9 @@ export default function Contact() {
       
       {/* Floating WhatsApp Button */}
       <a 
-        href="#" 
+        href="https://wa.me/254797759879" 
+        target="_blank" 
+        rel="noopener noreferrer"
         className="fixed bottom-6 right-6 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:scale-110 transition-transform z-50"
       >
         <MessageCircle size={24} />

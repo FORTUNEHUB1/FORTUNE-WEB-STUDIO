@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Twitter, Linkedin, Mail } from 'lucide-react';
+import { Mail, MessageCircle, Send, ExternalLink } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -30,9 +30,9 @@ export default function Footer() {
         <div>
           <h4 className="text-white font-medium mb-4 uppercase text-xs tracking-widest">Connect</h4>
           <div className="flex space-x-4 text-secondary">
-            <a href="#" className="hover:text-white transition-colors"><Instagram size={20} /></a>
-            <a href="#" className="hover:text-white transition-colors"><Twitter size={20} /></a>
-            <a href="#" className="hover:text-white transition-colors"><Linkedin size={20} /></a>
+            <a href="https://wa.me/254797759879" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors"><MessageCircle size={20} /></a>
+            <a href="https://t.me/+1vH_j9h-myowZjQ0" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors"><Send size={20} /></a>
+            <a href="https://whop.com/fortune-digital-hub/fortune-digital-hub-5b/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors"><ExternalLink size={20} /></a>
             <a href="mailto:hello@fortunestudio.com" className="hover:text-white transition-colors"><Mail size={20} /></a>
           </div>
         </div>
